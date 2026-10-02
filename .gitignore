@@ -14,3 +14,7 @@ jenkins_home/
 
 # Editor
 .vscode/
+
+# Cache de pytest
+__pycache__/
+.pytest_cache/
