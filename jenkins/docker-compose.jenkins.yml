@@ -1,0 +1,19 @@
+services:
+  jenkins:
+    build: .
+    container_name: firms_jenkins
+    ports:
+      - "8080:8080"
+    volumes:
+      - jenkins_home:/var/jenkins_home
+      - /var/run/docker.sock:/var/run/docker.sock
+    group_add:
+      - "0"
+
+volumes:
+  jenkins_home:
+
+networks:
+  default:
+    name: firms_network
+    external: true
