@@ -32,7 +32,7 @@ data/raw/*.csv ── ingesta/cargar_raw_mongo.py ──▶ MongoDB: focos_calor
                                           API Flask  (puerto 5050)
 ```
 
-Despliegue continuo: GitHub → Jenkins (consulta el repo cada minuto) →
+Despliegue continuo: GitHub → Jenkins (webhook de GitHub; consulta cada minuto como respaldo) →
 construir imágenes → pruebas (pytest) → desplegar con Docker Compose.
 
 ## Servicios y puertos
@@ -160,9 +160,44 @@ Sus datos viven en el volumen `jenkins_jenkins_home`.
 4. Crear un job de tipo **Pipeline** llamado `bigdata-firms-colombia`:
    *Definition* = Pipeline script from SCM, SCM = Git, la URL del repositorio,
    credencial `github-token`, rama `*/main`, Script Path `Jenkinsfile`.
-5. En *Triggers* marcar **Consultar repositorio (SCM)** con `* * * * *`
-   (cada minuto). Jenkins sugiere una frecuencia menor; para la demostración se
-   quiere esta.
+5. En *Triggers* marcar **GitHub hook trigger for GITScm polling** y también
+   **Consultar repositorio (SCM)** con `* * * * *` (cada minuto), que queda como
+   respaldo si el webhook no llega. Jenkins sugiere una frecuencia menor; para la
+   demostración se quiere esta.
+
+## Webhook de GitHub
+
+Jenkins se activa con un webhook de GitHub. Como Jenkins corre en una máquina
+local, GitHub no puede llamarlo directamente: el evento pasa por un relé
+(https://smee.io) y un cliente que corre en el dev container lo reenvía a Jenkins.
+
+1. Crear un canal en https://smee.io/new y guardar su URL en `.env` como
+   `SMEE_URL` (`.env` no se versiona). La URL no debe publicarse: quien la
+   conozca puede leer los eventos de push, que incluyen nombres y correos de autor.
+2. En GitHub: *Settings → Webhooks → Add webhook*. *Payload URL*: la URL del
+   canal. *Content type*: `application/json`. *Secret*: vacío. Evento:
+   *Just the push event*.
+3. En el job de Jenkins, marcar **GitHub hook trigger for GITScm polling**
+   (paso 5 de la configuración de Jenkins).
+4. Arrancar el cliente en el dev container y comprobar que corre:
+
+```bash
+   SMEE_URL=$(grep '^SMEE_URL=' .env | cut -d= -f2-)
+   nohup npx --yes smee-client --url "$SMEE_URL" \
+     --target "http://firms_jenkins:8080/github-webhook/?relay=smee" > /tmp/smee.log 2>&1 &
+   pgrep -af smee
+```
+
+El `?relay=smee` del destino es necesario: sin él, el cliente recorta la barra
+final, Jenkins responde con una redirección y la petición redirigida llega como
+GET, que Jenkins rechaza con 405 (comprobado).
+
+Verificado: un push de prueba arrancó el build #19 con la causa «Started by
+GitHub push», como máximo 12 s después del push. La consulta cada minuto sigue
+activa como respaldo, pero no se probó con el relé apagado. El cliente se detiene
+si se reinicia el dev container: comprobarlo con `pgrep -af smee` antes de
+cualquier demostración. Al terminar, borrar el webhook en GitHub y abandonar el
+canal.
 
 ## API
 
@@ -210,10 +245,12 @@ El `Jenkinsfile` define cuatro etapas:
 3. **Deploy:** `docker compose up -d --build`.
 4. **Post:** `docker compose ps`.
 
-Si una prueba falla, la etapa Test falla y el pipeline no llega a Deploy.
+Si una prueba falla, la etapa Test falla y el pipeline no llega a Deploy. Se verificó con un fallo provocado (build #15): se detuvo
+en Test y Deploy no se ejecutó.
 
-Jenkins consulta el repositorio cada minuto; no usa webhooks porque Jenkins
-corre en una máquina local sin dirección pública. Jenkins **no** ejecuta la
+Jenkins se activa con un **webhook de GitHub**; como corre en una máquina local sin
+dirección pública, el webhook llega por un relé (smee.io), descrito en «Webhook de
+GitHub». La consulta cada minuto sigue activa como respaldo. Jenkins **no** ejecuta la
 ingesta ni los jobs de Spark: solo construye, prueba y despliega los servicios.
 
 ## Cambio en vivo (ensayo)
