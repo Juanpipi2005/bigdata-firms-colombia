@@ -247,5 +247,93 @@ def agregado_cerca_mensual():
     )
 
 
+import re
+
+db = client[MONGO_DB]
+MES_VALIDO = re.compile(r"^\d{4}-(0[1-9]|1[0-2])$")
+
+NOTA_SERIE_MENSUAL = (
+    "Un solo sensor por periodo: N (Suomi-NPP) hasta 2018 y N20 (NOAA-20) desde 2019; "
+    "sumar ambos duplicaria las detecciones. 'parcial' marca el mes de la ultima "
+    "deteccion disponible, que puede estar incompleto. detecciones_sin_estaticas "
+    "excluye las celdas candidatas a fuente estatica."
+)
+NOTA_SERIE_HORARIA = (
+    "VIIRS es un satelite de orbita polar y pasa por Colombia a horas casi fijas: "
+    "esta distribucion refleja sobre todo los horarios de paso del satelite, "
+    "no el ciclo diario real de los incendios."
+)
+NOTA_CELDAS = (
+    "Heuristica para identificar candidatas, no prueba de que sean fuentes estaticas. "
+    "Criterio: al menos 500 detecciones, 300 dias, 60 meses y 7 anios distintos, "
+    "en celdas de 0.01 grados (~1.1 km en latitud)."
+)
+
+
+def leer_mes(args, nombre):
+    valor = args.get(nombre)
+    if valor is None:
+        return None
+    if not MES_VALIDO.match(valor):
+        raise ParametroInvalido(f"'{nombre}' debe tener formato AAAA-MM (ej: 2024-03)")
+    return valor
+
+
+@app.route("/spark/serie-mensual")
+def spark_serie_mensual():
+    desde = leer_mes(request.args, "desde")
+    hasta = leer_mes(request.args, "hasta")
+    if desde and hasta and desde > hasta:
+        raise ParametroInvalido("'desde' no puede ser posterior a 'hasta'")
+
+    filtro = {}
+    if desde or hasta:
+        filtro["mes"] = {}
+        if desde:
+            filtro["mes"]["$gte"] = desde
+        if hasta:
+            filtro["mes"]["$lte"] = hasta
+
+    meses = list(
+        db["serie_mensual"].find(filtro, {"_id": 0}).sort("mes", 1).max_time_ms(TIMEOUT_MS)
+    )
+    ultima = focos.find_one(
+        {}, {"_id": 0, "fecha_hora_colombia": 1}, sort=[("fecha_hora_colombia", -1)]
+    )
+    mes_parcial = ultima["fecha_hora_colombia"].strftime("%Y-%m") if ultima else None
+    for m in meses:
+        m["parcial"] = m["mes"] == mes_parcial
+
+    return jsonify({"nota": NOTA_SERIE_MENSUAL, "total_meses": len(meses), "meses": meses})
+
+
+@app.route("/spark/serie-horaria")
+def spark_serie_horaria():
+    horas = list(
+        db["serie_horaria"].find({}, {"_id": 0}).sort("hora_local", 1).max_time_ms(TIMEOUT_MS)
+    )
+    return jsonify({"nota": NOTA_SERIE_HORARIA, "horas": horas})
+
+
+@app.route("/spark/celdas-estaticas")
+def spark_celdas_estaticas():
+    limite = leer_limite(request.args)
+    filtro = {"posible_fuente_estatica": True}
+    coleccion = db["celdas_recurrencia"]
+    total = coleccion.count_documents(filtro, maxTimeMS=TIMEOUT_MS)
+
+    celdas = []
+    cursor = coleccion.find(filtro, {"_id": 0}).sort("detecciones", -1).limit(limite)
+    for celda in cursor.max_time_ms(TIMEOUT_MS):
+        for campo in ("primera", "ultima"):
+            if isinstance(celda.get(campo), datetime):
+                celda[campo] = celda[campo].date().isoformat()
+        celdas.append(celda)
+
+    return jsonify(
+        {"nota": NOTA_CELDAS, "total_candidatas": total, "devueltas": len(celdas), "celdas": celdas}
+    )
+
+
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5000)
