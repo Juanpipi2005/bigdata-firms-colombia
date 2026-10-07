@@ -36,6 +36,30 @@ services:
     depends_on:
       - spark-master
 
+  dask-scheduler:
+    build: ./dask
+    image: firms-dask
+    container_name: firms_dask_scheduler
+    command: dask scheduler --port 8786 --dashboard-address :8787
+    ports:
+      - "8787:8787"
+
+  dask-worker-1:
+    build: ./dask
+    image: firms-dask
+    container_name: firms_dask_worker_1
+    command: dask worker tcp://dask-scheduler:8786 --nworkers 1 --nthreads 2 --memory-limit 2GB
+    depends_on:
+      - dask-scheduler
+
+  dask-worker-2:
+    build: ./dask
+    image: firms-dask
+    container_name: firms_dask_worker_2
+    command: dask worker tcp://dask-scheduler:8786 --nworkers 1 --nthreads 2 --memory-limit 2GB
+    depends_on:
+      - dask-scheduler
+
 volumes:
   mongo_data:
 
