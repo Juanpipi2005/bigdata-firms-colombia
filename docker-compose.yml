@@ -18,6 +18,24 @@ services:
     depends_on:
       - mongo
 
+  spark-master:
+    build: ./spark
+    image: firms-spark
+    container_name: firms_spark_master
+    command: spark-class org.apache.spark.deploy.master.Master --host spark-master --port 7077 --webui-port 8080
+    ports:
+      - "8081:8080"
+
+  spark-worker:
+    build: ./spark
+    image: firms-spark
+    container_name: firms_spark_worker
+    command: spark-class org.apache.spark.deploy.worker.Worker spark://spark-master:7077 --cores 2 --memory 2g --webui-port 8081
+    ports:
+      - "8082:8081"
+    depends_on:
+      - spark-master
+
 volumes:
   mongo_data:
 
