@@ -10,7 +10,7 @@ candidatas a fuente estática con los umbrales del proyecto (500 detecciones,
 300 días, 60 meses, 7 años).
 
 **Control de validez.** Cada corrida compara su resultado contra el de referencia
-(`parametros.py`) y lo reporta como `control_ok`. Las 15 corridas ejecutadas dieron
+(`parametros.py`) y lo reporta como `control_ok`. Las 17 corridas ejecutadas dieron
 el mismo resultado: 327.057 celdas, 2.333.350 detecciones, 60 candidatas y
 84.272 detecciones en ellas. Si una corrida hubiera dado otra cifra, no se
 habría contado.
@@ -48,24 +48,29 @@ la inferencia del esquema de la colección.
 ## Memoria (MiB)
 
 Se muestreó `docker stats` mientras corría cada job, partiendo de contenedores
-recién reiniciados. Solo se midió con 2 cores (Spark) y 2 workers (Dask).
+recién reiniciados. Cada configuración tiene una medición válida (la primera
+medición de Dask con 2 workers se descartó, ver limitaciones).
 
 | Motor           | Contenedor           | Reposo | Pico  | Subida | Muestras |
 |-----------------|----------------------|-------:|------:|-------:|---------:|
+| Spark, 1 core   | firms_spark_worker   |    213 | 1.332 |  1.119 |      105 |
+| Spark, 2 cores  | firms_spark_worker   |    198 | 1.529 |  1.331 |       47 |
+| Dask, 1 worker  | firms_dask_worker_1  |    147 |   570 |    424 |       25 |
 | Dask, 2 workers | firms_dask_worker_1  |    151 |   408 |    257 |       14 |
 | Dask, 2 workers | firms_dask_worker_2  |    151 |   436 |    285 |       14 |
-| Spark, 2 cores  | firms_spark_worker   |    198 | 1.529 |  1.331 |       47 |
 
 En cada medición, los contenedores del otro motor y Mongo no se movieron
-(subida de 1 a 5 MiB).
+(subida de 0 a 5 MiB).
 
 ## Qué se puede decir
 
 - En este montaje, Dask terminó la operación en unos 10-13 s y Spark en unos
   47-50 s (promediando sin la primera corrida), es decir, entre 3,5 y 4,6 veces
   más rápido.
-- Con la medición disponible, Dask usó menos memoria que Spark: unos 540 MiB
-  sumando sus dos workers contra unos 1.330 MiB del worker de Spark.
+- Con la memoria medida en las dos configuraciones de cada motor, Dask usó menos
+  que Spark en ambas: con 2 workers sumó unos 540 MiB de subida (257 + 285)
+  contra 1.331 MiB de Spark con 2 cores; con 1 worker, 424 MiB contra 1.119 MiB
+  de Spark con 1 core. Es decir, Spark usó entre 2,5 y 2,6 veces más.
 
 ## Qué NO se puede concluir
 
@@ -91,7 +96,12 @@ En cada medición, los contenedores del otro motor y Mongo no se movieron
 - No se mide el driver (el proceso que lanza el job), que corre en el dev
   container, en ninguno de los dos motores.
 - El pico de Spark incluye la máquina virtual de Java, y no se desglosó.
-- No se midió la memoria con 1 core (Spark) ni con 1 worker (Dask).
+- La memoria se midió una vez por configuración (sin repeticiones), y el reposo
+  de partida varió entre mediciones (por ejemplo, 198 y 213 MiB en el worker de
+  Spark).
+- Al pasar de 2 a 1 unidad, la memoria de Spark bajó (de 1.331 a 1.119 MiB de
+  subida) y la de Dask subió (de 257 y 285 MiB por worker a 424 MiB en el único
+  worker); con una medición por configuración no se interpreta.
 - Una primera medición de memoria de Dask se descartó: el worker 1 traía
   memoria de corridas anteriores y no era comparable. Se repitió con los
   contenedores recién reiniciados.

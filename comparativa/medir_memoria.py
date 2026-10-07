@@ -28,10 +28,17 @@ def a_mib(texto):
     return float(m.group(1)) * UNIDADES.get(m.group(2), 0.0)
 
 
+def contenedores_activos():
+    """Solo los contenedores de la lista que estan corriendo (omite los detenidos)."""
+    activos = subprocess.run(["docker", "ps", "--format", "{{.Names}}"],
+                             capture_output=True, text=True).stdout.split()
+    return [c for c in CONTENEDORES if c in activos]
+
+
 def leer_memoria():
     salida = subprocess.check_output(
         ["docker", "stats", "--no-stream", "--format", "{{.Name}}|{{.MemUsage}}"]
-        + CONTENEDORES, text=True)
+        + contenedores_activos(), text=True)
     memoria = {}
     for linea in salida.strip().splitlines():
         nombre, uso = linea.split("|")
