@@ -92,14 +92,20 @@ red `firms_network`, a la que el dev container se une al abrirse.
    cp .env.example .env      # luego editar .env y completar MAP_KEY
 ```
 
-2. **Levantar los servicios** desde una terminal normal, *antes* de abrir el dev
-   container (es lo que crea la red `firms_network`). La primera vez tarda
-   varios minutos: en nuestra prueba la imagen de Spark tardó unos 10 minutos,
-   casi todo en instalar `pyspark`; las siguientes construcciones usan la caché.
+2. **Levantar todo con un comando**, desde una terminal normal y *antes* de abrir
+   el dev container (esto crea la red `firms_network`). Levanta los 7
+   contenedores principales y Jenkins, y espera a que la API responda y MongoDB
+   esté conectado. La primera vez tarda varios minutos: en nuestra prueba la
+   imagen de Spark tardó unos 10 minutos, casi todo en instalar `pyspark`; las
+   siguientes construcciones usan la caché.
 
 ```bash
-   docker compose up -d --build
+   ./levantar.sh
 ```
+
+   No ejecutarlo mientras corre un job de Spark o de Dask: recrea esos clusters
+   y lo interrumpiría. No carga datos (eso son los pasos 4 y 5). Solo se probó
+   sobre un sistema que ya estaba en marcha, no desde cero.
 
 3. **Abrir el proyecto en el dev container** (VS Code → *Dev Containers: Reopen in Container*) y comprobar que hay 7 contenedores en marcha:
 
@@ -131,15 +137,9 @@ red `firms_network`, a la que el dev container se une al abrirse.
 
    Los tests de `/spark/*` necesitan que el paso 5 ya se haya ejecutado.
 
-7. **Jenkins** (opcional para usar la API; necesario para el despliegue continuo).
-   Se levanta aparte y *después* del paso 2, porque se une a la red ya creada:
-
-```bash
-   cd jenkins
-   docker compose -f docker-compose.jenkins.yml up -d --build
-```
-
-   La configuración inicial se describe más abajo.
+7. **Jenkins** (opcional para usar la API; necesario para el despliegue continuo):
+   `./levantar.sh` ya lo levanta. Su compose está en `jenkins/` y se une a la red
+   que crea el principal. La configuración inicial se describe más abajo.
 
 ## Configurar Jenkins (primera vez)
 
@@ -297,6 +297,9 @@ y solo hay 3 corridas por configuración.
   hayan ejecutado. En una máquina limpia hay que seguir primero los pasos de
   «Cómo levantarlo desde cero».
 - **La ingesta no es automática.** Descargar, cargar y limpiar se ejecuta a mano.
+- **`levantar.sh` no carga datos** y solo se probó sobre un sistema ya en marcha,
+  no desde cero ni desde la terminal del Mac. Recrea los clusters de Spark y de
+  Dask: no ejecutarlo con un job en curso.
 - **Limpieza con Dask:** `ingesta/limpieza_dask.py` lee de MongoDB por lotes de
   100.000 documentos y usa Dask sobre cada lote; los workers del cluster de Dask
   intervienen en la comparativa, no en este script.
