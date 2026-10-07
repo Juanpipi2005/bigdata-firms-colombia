@@ -129,3 +129,29 @@ def test_agregado_y_cerca_cuentan_lo_mismo():
     total = get("/focos/cerca", **PUNTO, radio_km=5, limite=1).json()["total_en_radio"]
     meses = get("/agregados/cerca-mensual", **PUNTO, radio_km=5).json()["meses"]
     assert sum(m["detecciones"] for m in meses) == total
+
+
+# ---------- /focos/cerca: filtro frp_min ----------
+
+def test_cerca_frp_min_filtra():
+    d = get("/focos/cerca", **PUNTO, radio_km=5, limite=50, frp_min=10).json()
+    assert all(f["frp"] >= 10 for f in d["focos"])
+
+
+def test_cerca_frp_min_cero_no_cambia_el_total():
+    sin = get("/focos/cerca", **PUNTO, radio_km=5, limite=1).json()["total_en_radio"]
+    con = get("/focos/cerca", **PUNTO, radio_km=5, limite=1, frp_min=0).json()["total_en_radio"]
+    assert con == sin
+
+
+def test_cerca_frp_min_reduce_el_total():
+    sin = get("/focos/cerca", **PUNTO, radio_km=5, limite=1).json()["total_en_radio"]
+    con = get("/focos/cerca", **PUNTO, radio_km=5, limite=1, frp_min=10).json()["total_en_radio"]
+    assert con <= sin
+
+
+@pytest.mark.parametrize("frp_min", ["-1", "x", "10001"])
+def test_cerca_frp_min_invalido(frp_min):
+    r = get("/focos/cerca", **PUNTO, frp_min=frp_min)
+    assert r.status_code == 400
+    assert "error" in r.json()

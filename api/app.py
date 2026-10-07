@@ -132,14 +132,17 @@ def focos_cerca():
     radio_km = leer_float(request.args, "radio_km", 0.1, RADIO_MAXIMO_KM, RADIO_DEFECTO_KM)
     limite = leer_limite(request.args)
     confianza = leer_confianza(request.args)
+    frp_min = leer_float(request.args, "frp_min", 0, 10000, 0)
 
-    filtro_confianza = {"confidence": {"$in": confianza}} if confianza else {}
+    filtro_extra = {"confidence": {"$in": confianza}} if confianza else {}
+    if frp_min > 0:
+        filtro_extra["frp"] = {"$gte": frp_min}
 
     # $near no se puede usar en count_documents, asi que el total se cuenta con $geoWithin
     total = focos.count_documents(
         {
             "location": {"$geoWithin": {"$centerSphere": [[lon, lat], radio_km / RADIO_TIERRA_KM]}},
-            **filtro_confianza,
+            **filtro_extra,
         },
         maxTimeMS=TIMEOUT_MS,
     )
@@ -151,7 +154,7 @@ def focos_cerca():
                 "$maxDistance": radio_km * 1000,
             }
         },
-        **filtro_confianza,
+        **filtro_extra,
     }
     docs = [
         serializar(d)
