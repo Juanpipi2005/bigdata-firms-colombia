@@ -30,9 +30,11 @@ habría contado.
 
 ## Tiempos (segundos)
 
-Cada configuración se corrió 3 veces seguidas. La tabla muestra las 3 y dos
-promedios, porque la primera corrida no siempre fue la más lenta (la 1.ª de
-Dask con 1 worker salió a 14,96 s, ya con la caché de Mongo caliente).
+Cada configuración se corrió 3 veces seguidas. La primera corrida fue la más
+lenta en las cuatro configuraciones (sospechamos el calentamiento de MongoDB,
+sin comprobarlo). La tabla muestra las 3 corridas y dos promedios, porque
+descartar la primera es una decisión arbitraria y cambia la conclusión sobre
+Spark con 1 y 2 cores.
 
 | Configuración   | Corrida 1 | Corrida 2 | Corrida 3 | Prom. de las 3 | Prom. de la 2 y 3 |
 |-----------------|----------:|----------:|----------:|---------------:|------------------:|
