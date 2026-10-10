@@ -174,6 +174,9 @@ local, GitHub no puede llamarlo directamente: el evento pasa por un relé
 1. Crear un canal en https://smee.io/new y guardar su URL en `.env` como
    `SMEE_URL` (`.env` no se versiona). La URL no debe publicarse: quien la
    conozca puede leer los eventos de push, que incluyen nombres y correos de autor.
+   Antes de agregarla, comprobar que `.env` termine en salto de línea
+   (`[ -n "$(tail -c1 .env)" ] && echo >> .env`); si no, la línea queda pegada a
+   la anterior y el comando del paso 4 no la encuentra.
 2. En GitHub: *Settings → Webhooks → Add webhook*. *Payload URL*: la URL del
    canal. *Content type*: `application/json`. *Secret*: vacío. Evento:
    *Just the push event*.
@@ -193,8 +196,9 @@ final, Jenkins responde con una redirección y la petición redirigida llega com
 GET, que Jenkins rechaza con 405 (comprobado).
 
 Verificado: un push de prueba arrancó el build #19 con la causa «Started by
-GitHub push», como máximo 12 s después del push. La consulta cada minuto sigue
-activa como respaldo, pero no se probó con el relé apagado. El cliente se detiene
+GitHub push», como máximo 12 s después del push. Con el relé apagado, otro push arrancó el build #22 por la consulta cada minuto
+(causa «Started by an SCM change»), entre unos 13 y 72 s después del commit:
+el respaldo funciona. El cliente se detiene
 si se reinicia el dev container: comprobarlo con `pgrep -af smee` antes de
 cualquier demostración. Al terminar, borrar el webhook en GitHub y abandonar el
 canal.
